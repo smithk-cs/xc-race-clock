@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#14201a">
+<title>XC Race Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700;800&family=Public+Sans:wght@400;600;700&display=swap">
+<style>
+html{-webkit-text-size-adjust:100%}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+[hidden]{display:none!important}
+img{max-width:100%}
+/* Layout: sticky clock bar on top, one working view below; built for a phone held outdoors in one hand. */
+:root{
+  --bg:#f3f5f2; --surface:#ffffff; --fg:#14201a; --muted:#5b6b62; --line:#d5ddd7;
+  --accent:#1d6a47; --accent-fg:#ffffff; --go:#e2561b; --go-fg:#ffffff; --warn:#a15c00; --bad:#b3261e; --ok:#1d6a47;
+  --clock-bg:#14201a; --clock-fg:#f3f5f2;
+  --display:"Saira Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1512; --surface:#18211c; --fg:#e7ede9; --muted:#9aaba1; --line:#2b3831;
+  --accent:#4cbf8a; --accent-fg:#06110b; --go:#ff7a3d; --go-fg:#160700; --warn:#f0a640; --bad:#ff8a80; --ok:#4cbf8a;
+  --clock-bg:#000000; --clock-fg:#e7ede9; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1512; --surface:#18211c; --fg:#e7ede9; --muted:#9aaba1; --line:#2b3831;
+  --accent:#4cbf8a; --accent-fg:#06110b; --go:#ff7a3d; --go-fg:#160700; --warn:#f0a640; --bad:#ff8a80; --ok:#4cbf8a;
+  --clock-bg:#000000; --clock-fg:#e7ede9; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.45}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--clock-bg)}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));max-width:760px;margin:0 auto}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--clock-bg);color:var(--clock-fg)}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:8px 6px}
+.racename{font-family:var(--display);font-weight:700;font-size:15px;letter-spacing:.06em;text-transform:uppercase;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.sync{font-size:12px;font-weight:600;white-space:nowrap;padding:2px 8px;border-radius:99px;background:rgba(127,127,127,.25)}
+.sync.bad{background:var(--bad);color:#fff}
+.clock{font-family:var(--display);font-weight:800;font-size:clamp(56px,19vw,104px);line-height:.95;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.clock small{font-size:.45em;opacity:.7}
+.clocksub{font-size:13px;opacity:.75;padding-bottom:6px}
+nav{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid rgba(127,127,127,.3)}
+nav a{color:inherit;text-decoration:none;text-align:center;padding:10px 4px;font-family:var(--display);font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:14px;opacity:.65;border-bottom:3px solid transparent}
+nav a[aria-current="page"]{opacity:1;border-bottom-color:var(--go)}
+nav a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--go);outline-offset:2px}
+main{padding-block:16px 48px;display:grid;gap:16px}
+h2{font-family:var(--display);font-weight:700;font-size:22px;letter-spacing:.04em;text-transform:uppercase;margin:0;text-wrap:balance}
+h3{font-size:15px;margin:0}
+p{margin:0}
+.muted{color:var(--muted)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;display:grid;gap:12px;min-width:0}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+label{font-size:13px;font-weight:600;color:var(--muted);display:grid;gap:4px}
+input,select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;min-width:0;width:100%}
+input[type=color]{padding:2px;width:48px;height:44px;flex:none}
+button{font:inherit;font-weight:700;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:10px 14px;min-height:44px}
+button.primary{background:var(--accent);color:var(--accent-fg);border-color:transparent}
+button.danger{color:var(--bad)}
+button.danger.armed{background:var(--bad);color:#fff;border-color:transparent}
+button:disabled{opacity:.45;cursor:default}
+.banner{border-radius:10px;padding:10px 14px;font-size:14px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:var(--surface);border:1px dashed var(--warn)}
+.banner b{color:var(--warn)}
+/* Tap view */
+.cpbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.cpname{font-family:var(--display);font-weight:800;font-size:28px;text-transform:uppercase;letter-spacing:.03em}
+.pads{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.pad{min-height:96px;border-radius:12px;border:2px solid rgba(0,0,0,.25);display:grid;align-content:center;justify-items:center;gap:2px;padding:8px;font-family:var(--display);text-transform:uppercase;touch-action:manipulation;-webkit-user-select:none;user-select:none;transition:transform .06s}
+.pad:active{transform:scale(.96)}
+.pad .pn{font-size:24px;font-weight:800;line-height:1.05;text-align:center;overflow-wrap:anywhere}
+.pad .pc{font-size:15px;font-weight:700;opacity:.85;font-variant-numeric:tabular-nums}
+.pad.other{background:var(--surface);color:var(--fg);border-style:dashed;border-color:var(--muted)}
+.pad.flash{outline:4px solid var(--go)}
+.recent{display:grid;gap:4px}
+.tap{display:grid;grid-template-columns:2.4em 14px 1fr auto auto;gap:10px;align-items:center;font-variant-numeric:tabular-nums;padding:4px 0;border-bottom:1px solid var(--line)}
+.tap:last-child{border-bottom:0}
+.sw{width:14px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,.3)}
+.tap .x{min-height:32px;padding:2px 10px;font-weight:600}
+.tap .tm{font-family:var(--display);font-weight:700;font-size:18px}
+/* Scores */
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{padding:6px 12px;min-height:36px;border-radius:99px;font-size:14px}
+.chip[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:transparent}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:15px}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle;white-space:nowrap}
+td.big{font-family:var(--display);font-weight:800;font-size:24px}
+td.pl{white-space:normal;min-width:120px}
+td .places{font-size:14px}
+td .places s{opacity:.6;text-decoration:none}
+td .places s::before{content:"("}td .places s::after{content:")"}
+.teamcell{display:flex;align-items:center;gap:8px;font-weight:700}
+.empty{text-align:center;padding:24px 12px;display:grid;gap:10px;justify-items:center}
+.order{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 12px;font-variant-numeric:tabular-nums;font-size:14px}
+.order div{display:flex;gap:8px;align-items:center}
+.order .np{opacity:.5}
+/* Start */
+.startbtn{width:100%;min-height:140px;font-family:var(--display);font-size:44px;font-weight:800;letter-spacing:.06em;background:var(--go);color:var(--go-fg);border:0;border-radius:14px}
+.nudges{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.teamrow{display:flex;gap:8px;align-items:center}
+.teamrow input[type=text]{flex:1}
+.rules{font-size:14px;display:grid;gap:6px;padding-left:18px;margin:0}
+/* Broadcast overlay: a fixed look (it is keyed or captured over video), so its colors are set explicitly. */
+body.ov{background:#00b140}
+body.ov header,body.ov::before{display:none}
+body.ov main{padding:0;max-width:none}
+.ov-stage{position:fixed;inset:0;font-family:var(--display);color:#ffffff;overflow:hidden}
+.ov-ctl{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));right:calc(12px + env(safe-area-inset-right,0px));left:calc(12px + env(safe-area-inset-left,0px));display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;transition:opacity .3s;font-family:var(--body)}
+.ov-ctl.hide{opacity:0;pointer-events:none}
+.ov-ctl button{background:#ffffff;color:#14201a;border:0;min-height:36px;padding:6px 12px;font-size:14px}
+.ov-ctl button[aria-pressed="true"]{background:#14201a;color:#ffffff}
+.ov-ctl .tip{background:rgba(20,32,26,.85);color:#ffffff;border-radius:8px;padding:6px 10px;font-size:13px;flex-basis:100%;text-align:right}
+.ov-third{position:absolute;left:4vw;right:4vw;bottom:5vh;display:flex;align-items:stretch;gap:0;flex-wrap:wrap;filter:drop-shadow(0 4px 14px rgba(0,0,0,.45))}
+.ov-clockbox{background:#14201a;padding:1.2vh 2vw;display:grid;align-content:center;border-left:.6vw solid #e2561b}
+.ov-race{font-size:clamp(12px,1.6vw,24px);font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.8;white-space:nowrap}
+.ov-clock{font-size:clamp(40px,7vw,120px);font-weight:800;line-height:.95;font-variant-numeric:tabular-nums}
+.ov-scores{background:rgba(20,32,26,.88);padding:1.2vh 2vw;display:grid;align-content:center;gap:.6vh;flex:1;min-width:0}
+.ov-cp{font-size:clamp(12px,1.6vw,24px);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#ffb48f}
+.ov-pills{display:flex;gap:1.4vw;flex-wrap:wrap;align-items:center}
+.ov-pill{display:flex;align-items:center;gap:.6vw;font-size:clamp(16px,2.6vw,44px);font-weight:700;text-transform:uppercase;white-space:nowrap}
+.ov-pill .pl{opacity:.6;font-size:.7em}
+.ov-pill .sq{width:.7em;height:.7em;border-radius:2px;border:2px solid rgba(255,255,255,.7)}
+.ov-pill b{font-weight:800;color:#ffffff;background:rgba(255,255,255,.15);padding:0 .3em;border-radius:3px;font-variant-numeric:tabular-nums}
+.ov-wait{font-size:clamp(14px,2vw,32px);opacity:.8}
+@media (prefers-reduced-motion: reduce){.pad{transition:none}.ov-ctl{transition:none}}
+.crewchip{color:inherit;text-decoration:none;font-size:12px;font-weight:600;white-space:nowrap;padding:2px 8px;border-radius:99px;border:1px solid rgba(127,127,127,.5)}
+.barright{display:flex;gap:6px;align-items:center}
+.crew{display:grid;gap:0}
+.crewrow{display:grid;grid-template-columns:14px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.crewrow:last-child{border-bottom:0}
+.dot{width:12px;height:12px;border-radius:50%;background:var(--muted)}
+.dot.on{background:var(--ok)}
+.dot.away{background:var(--warn)}
+.crewrow .who{font-weight:700;overflow-wrap:anywhere}
+.crewrow .det{font-size:13px;color:var(--muted)}
+.crewrow .spot{font-family:var(--display);font-weight:700;font-size:18px;text-transform:uppercase;text-align:right}
+.warn{color:var(--warn);font-weight:600}
+.share{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+.share > div{display:grid;gap:8px;align-content:start;min-width:0}
+.share code{font-size:12px;overflow-wrap:anywhere;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+.qr{background:#ffffff;padding:8px;border-radius:8px;width:max-content}
+.qr img,.qr canvas{display:block}
+</style>
+<script src="lib/supabase.js"></script>
+<script src="lib/qrcode.min.js"></script>
+<script src="config.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="bar"><span class="racename" id="raceName">XC Race Clock</span><span class="barright"><a class="crewchip" id="crewChip" href="#crew" hidden></a><span class="sync" id="sync">Connecting…</span></span></div>
+    <div class="clock" id="clock">0:00<small>.0</small></div>
+    <div class="clocksub" id="clockSub">Waiting for the start</div>
+  </div>
+  <nav class="wrap" aria-label="Views" id="nav">
+    <a href="#tap" data-v="tap">Tap</a>
+    <a href="#scores" data-v="scores">Scores</a>
+    <a href="#start" data-v="start">Start</a>
+    <a href="#crew" data-v="crew">Crew</a>
+    <a href="#setup" data-v="setup">Setup</a>
+  </nav>
+</header>
+<main class="wrap" id="main"></main>
+
+<script>
+(() => {
+// ---------- helpers ----------
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ls = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+const rid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+function fmt(ms, tenths = true){
+  if (ms == null || isNaN(ms)) return "–";
+  const neg = ms < 0; ms = Math.abs(ms);
+  const t = Math.floor(ms / 100), s = Math.floor(t / 10), m = Math.floor(s / 60);
+  const base = (neg ? "-" : "") + m + ":" + String(s % 60).padStart(2, "0");
+  return tenths ? base + "." + (t % 10) : base;
+}
+function textOn(hex){
+  const h = (hex || "#888888").replace("#", "");
+  const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
+  const L = (0.2126*r + 0.7152*g + 0.0722*b) / 255;
+  return L > 0.6 ? "#111111" : "#ffffff";
+}
+const OTHER = "_other";
+
+// ---------- state ----------
+let deviceId = ls.get("xc-device", null);
+if (!deviceId){ deviceId = rid(); ls.set("xc-device", deviceId); }
+let coachName = ls.get("xc-coach", "");
+let myCp = ls.get("xc-cp", null);           // checkpoint index this phone records
+let db = null, connected = false, loadTimer = null;
+let race = null;                            // shared race doc
+let remoteLogs = [];                        // log docs for current race
+let demo = false;
+let local = { raceId: null, logs: {} };     // this phone's taps: { [cpIndex]: [{id, at, team}] }
+const dirty = new Set(); let syncing = false; let syncErr = false;
+let scorePick = {};                         // cpIndex -> docId chosen on Scores view
+let unsubLogs = null;
+let armed = null;                           // confirm-step buttons
+const params = new URLSearchParams(location.search);
+const meet = (params.get("meet") || "").toLowerCase().replace(/[^a-z0-9-]/g, "");
+const watch = params.has("watch");          // families: clock and scores only
+const obsClear = params.get("bg") === "clear";
+if (meet) ls.set("xc-lastmeet", meet);
+
+function loadLocal(raceId){
+  local = ls.get("xc-taps-" + raceId, null) || { raceId, logs: {} };
+}
+function saveLocal(){ if (!demo && local.raceId) ls.set("xc-taps-" + local.raceId, local); }
+
+// ---------- Supabase wiring ----------
+const CFG = window.XC_SUPABASE || {};
+const configured = typeof supabase !== "undefined" && !!(CFG.url && CFG.anonKey);
+let sb = null, channel = null;
+let serverOffset = 0;                       // Supabase server time minus this phone's clock
+const now = () => Date.now() + serverOffset;
+let presence = {};                          // deviceId -> latest presence record (kept briefly after a phone drops off)
+let presTimer = null;
+
+async function syncClock(){
+  // Ask the server for its time a few times and keep the fastest answer.
+  let best = null;
+  for (let i = 0; i < 4; i++){
+    const t0 = Date.now();
+    const { data, error } = await sb.rpc("server_now_ms");
+    const t1 = Date.now();
+    if (error || data == null) continue;
+    const rtt = t1 - t0, off = Number(data) - (t0 + t1) / 2;
+    if (!best || rtt < best.rtt) best = { rtt, off };
+  }
+  if (best) serverOffset = best.off;
+}
+function connect(){
+  if (!configured || !meet){ updateSyncUi(); render(); return; }
+  try { sb = supabase.createClient(CFG.url, CFG.anonKey, { auth: { persistSession: false } }); db = sb; }
+  catch(e){ setSync("Database setup error", true); render(); return; }
+  loadTimer = setTimeout(() => { if (!connected) setSync("Can't reach the race yet", true); }, 10000);
+  syncClock(); setInterval(syncClock, 5 * 60 * 1000);
+  channel = sb.channel("meet-" + meet, { config: { presence: { key: deviceId } } });
+  channel
+    .on("presence", { event: "sync" }, () => {
+      const st = channel.presenceState(), t = now();
+      for (const id of Object.keys(presence)) if (!st[id]) presence[id] = { ...presence[id], gone: true };
+      for (const [id, metas] of Object.entries(st)) presence[id] = { ...metas[metas.length - 1], gone: false };
+      for (const [id, p] of Object.entries(presence)) if (p.gone && t - (p.lastSeen || 0) > 30 * 60000) delete presence[id];
+      renderCrewChip(); if (view() === "crew") render();
+    })
+    .on("postgres_changes", { event: "*", schema: "public", table: "races", filter: "meet=eq." + meet }, payload => {
+      if (payload.new?.data) setRace(payload.new.data);
+    })
+    .on("postgres_changes", { event: "*", schema: "public", table: "logs", filter: "meet=eq." + meet }, payload => {
+      const row = payload.new;
+      if (!row || row.race_id !== race?.raceId) return;
+      upsertRemoteLog(row); render();
+    })
+    .subscribe(async status => {
+      if (status === "SUBSCRIBED"){
+        connected = true; clearTimeout(loadTimer);
+        await loadRace(); joinPresence(); flush();
+      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED"){
+        connected = false;
+      }
+      updateSyncUi();
+    });
+  setInterval(heartbeat, 20000);
+  window.addEventListener("offline", () => { connected = false; updateSyncUi(); });
+}
+async function loadRace(){
+  const { data, error } = await sb.from("races").select("data").eq("meet", meet).maybeSingle();
+  if (error){ setSync("Can't open this meet. Run setup.sql in Supabase.", true); return; }
+  setRace(data?.data || null, true);
+}
+function setRace(v, force){
+  const next = v ? { ...v, teams: v.teams || [], checkpoints: v.checkpoints || [] } : null;
+  const changed = force || (next?.raceId || null) !== (race?.raceId || null);
+  race = next;
+  if (changed) onRaceChanged();
+  updateSyncUi(); updatePresence(); render();
+}
+function upsertRemoteLog(row){
+  const rec = { id: row.id, cp: row.cp, device: row.device, coach: row.coach, taps: row.taps || [] };
+  const i = remoteLogs.findIndex(d => d.id === row.id);
+  if (i >= 0) remoteLogs[i] = rec; else remoteLogs.push(rec);
+  if (rec.device === deviceId && !(local.logs[rec.cp]?.length) && rec.taps.length){ local.logs[rec.cp] = rec.taps.map(t => ({...t})); saveLocal(); }
+}
+async function onRaceChanged(){
+  remoteLogs = [];
+  if (!race?.raceId || demo) return;
+  loadLocal(race.raceId);
+  for (const cp of Object.keys(local.logs)) dirty.add(Number(cp));
+  flush();
+  const rid0 = race.raceId;
+  const { data } = await sb.from("logs").select("id,cp,device,coach,taps").eq("meet", meet).eq("race_id", rid0);
+  if (race?.raceId !== rid0) return;
+  (data || []).forEach(upsertRemoteLog); render();
+}
+function logDocId(cp){ return meet + "__" + local.raceId + "__" + cp + "__" + deviceId; }
+async function flush(){
+  if (syncing || !sb || demo || watch || !local.raceId) return;
+  const it = dirty.values().next(); if (it.done){ updateSyncUi(); updatePresence(); return; }
+  const cp = it.value; dirty.delete(cp); syncing = true; updateSyncUi(); updatePresence();
+  const { error } = await sb.from("logs").upsert({
+    id: logDocId(cp), meet, race_id: local.raceId, cp, device: deviceId,
+    coach: coachName || "Coach", taps: local.logs[cp] || [], updated_at: new Date().toISOString() });
+  if (error){
+    dirty.add(cp); syncErr = true; syncing = false; updateSyncUi();
+    setTimeout(flush, 4000 + Math.random()*2000); return;
+  }
+  syncErr = false; syncing = false; flush();
+}
+async function saveRace(patch, replace){
+  if (demo){ race = { ...race, ...patch }; render(); return true; }
+  if (!sb){ toast("Not connected to the race database."); return false; }
+  const next = replace ? { ...patch } : { ...(race || {}), ...patch };
+  const prev = race; setRace(next);
+  const { error } = await sb.from("races").upsert({ meet, data: next, updated_at: new Date().toISOString() });
+  if (error){ setRace(prev); toast(navigator.onLine ? "Couldn't save. Check setup.sql was run." : "No signal. Try again when it comes back."); return false; }
+  return true;
+}
+// ---------- who's connected ----------
+function pendingCount(){ return dirty.size + (syncing ? 1 : 0); }
+function presenceData(){
+  const coach = !watch && view() !== "overlay";
+  const mine = myCp != null ? (local.logs[myCp] || []) : [];
+  return { name: coach ? (coachName || "") : "", role: coach ? "coach" : "viewer",
+    spot: coach && myCp != null && race?.checkpoints?.[myCp] ? race.checkpoints[myCp] : null,
+    view: view(), taps: mine.length, lastTapAt: mine.length ? Math.max(...mine.map(x => x.at)) : null,
+    pending: pendingCount(), lastSeen: now() };
+}
+function joinPresence(){ if (channel && connected && !demo) channel.track(presenceData()).catch(() => {}); }
+function updatePresence(){
+  if (!channel || !connected) return;
+  clearTimeout(presTimer);
+  presTimer = setTimeout(joinPresence, 400);
+}
+function heartbeat(){ joinPresence(); }
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible"){ joinPresence(); flush(); } });
+function crewList(){
+  const t = now();
+  return Object.entries(presence).map(([id, p]) => ({ id, ...p, me: id === deviceId, on: !p.gone && (t - (p.lastSeen || 0)) < 60000 }));
+}
+function renderCrewChip(){
+  const el = $("#crewChip"); if (!el) return;
+  if (!meet || demo || watch){ el.hidden = true; return; }
+  const n = crewList().filter(p => p.role === "coach" && p.on).length;
+  el.hidden = false; el.textContent = n + (n === 1 ? " coach" : " coaches");
+}
+function ago(ms){
+  if (ms == null) return "";
+  const s = Math.max(0, Math.round((now() - ms) / 1000));
+  return s < 10 ? "just now" : s < 60 ? s + " s ago" : Math.round(s / 60) + " min ago";
+}
+function setSync(text, bad){ const el = $("#sync"); el.textContent = text; el.classList.toggle("bad", !!bad); }
+function updateSyncUi(){
+  if (demo) return setSync("Demo race", false);
+  if (!configured) return setSync("Database not set up", true);
+  if (!meet) return setSync("No meet open", false);
+  const pending = pendingCount();
+  if (!connected) return setSync(pending ? "No signal: taps saved on phone" : "No signal", true);
+  if (pending) return setSync("Sending…", false);
+  setSync("Live", false);
+}
+
+// ---------- clock ----------
+function tick(){
+  const start = race?.startAt;
+  const el = $("#clock"), sub = $("#clockSub");
+  if (!start){ el.innerHTML = "0:00<small>.0</small>"; sub.textContent = race ? "Waiting for the start" : "No race set up yet"; }
+  else {
+    const ms = now() - start, s = fmt(ms);
+    const dot = s.lastIndexOf(".");
+    el.innerHTML = esc(s.slice(0, dot)) + "<small>" + esc(s.slice(dot)) + "</small>";
+    sub.textContent = "Started " + new Date(start).toLocaleTimeString([], {hour:"numeric", minute:"2-digit", second:"2-digit"});
+  }
+  const ov = document.getElementById("ovClock");
+  if (ov){ const s = start ? fmt(now() - start, false) : "0:00"; if (ov.textContent !== s) ov.textContent = s; }
+  requestAnimationFrame(tick);
+}
+
+// ---------- scoring ----------
+// Cross country scoring: only teams with 5+ runners through count. Each team's top 7
+// take places; runners on incomplete teams, unattached runners ("Other") and 8th+ runners
+// are skipped and places are renumbered. Sum of top 5 wins; 6th and 7th only displace.
+// Ties are broken by the 6th runner.
+function score(taps, teams){
+  const sorted = [...taps].sort((a,b) => a.at - b.at);
+  const counts = Object.fromEntries(teams.map(t => [t.id, 0]));
+  for (const x of sorted) if (x.team in counts) counts[x.team]++;
+  const complete = new Set(teams.filter(t => counts[t.id] >= 5).map(t => t.id));
+  const per = {}; for (const id of complete) per[id] = [];
+  let place = 0;
+  const order = sorted.map((x, i) => {
+    let tp = null;
+    if (per[x.team] && per[x.team].length < 7){ tp = ++place; per[x.team].push({ place: tp, at: x.at }); }
+    return { overall: i + 1, at: x.at, team: x.team, tp };
+  });
+  const standings = [...complete].map(id => {
+    const p = per[id];
+    return { id, score: p.slice(0,5).reduce((s, r) => s + r.place, 0), places: p,
+             sixth: p[5]?.place ?? Infinity, spread: p[4].at - p[0].at };
+  }).sort((a,b) => a.score - b.score || a.sixth - b.sixth);
+  const waiting = teams.filter(t => !complete.has(t.id)).map(t => ({ id: t.id, n: counts[t.id] }));
+  return { standings, waiting, order, total: sorted.length };
+}
+
+// ---------- demo ----------
+function startDemo(){
+  demo = true;
+  const teams = [
+    { id:"t1", name:"Jefferson", color:"#1b4fa0" }, { id:"t2", name:"Riverside", color:"#c8102e" },
+    { id:"t3", name:"Oak Hill", color:"#f2c500" }, { id:"t4", name:"Lakeview", color:"#2e7d32" }
+  ];
+  const start = Date.now() - (16*60 + 40)*1000;
+  race = { raceId:"demo", name:"Demo Invitational (example)", teams, checkpoints:["1 Mile","2 Mile","Finish"], startAt:start };
+  let seed = 7; const rnd = () => (seed = (seed*16807) % 2147483647) / 2147483647;
+  const runners = [];
+  teams.forEach((t, ti) => { for (let i = 0; i < 7; i++) runners.push({ team:t.id, pace: 330 + ti*6 + i*9 + rnd()*40 }); });
+  for (let i = 0; i < 4; i++) runners.push({ team: OTHER, pace: 320 + rnd()*90 });
+  const logs = {};
+  [1, 2].forEach((mile, cp) => {
+    logs[cp] = runners.map(r => ({ id: rid(), team: r.team, at: start + (r.pace*mile + rnd()*12)*1000 }))
+      .filter(x => x.at < Date.now()).sort((a,b) => a.at - b.at);
+  });
+  logs[2] = [];
+  local = { raceId:"demo", logs };
+  myCp = 1; remoteLogs = [];
+  updateSyncUi(); render();
+}
+function exitDemo(){ location.hash = "#tap"; location.reload(); }
+
+// ---------- views ----------
+const view = () => {
+  const h = location.hash.slice(1);
+  if (watch) return h === "overlay" ? "overlay" : "scores";
+  return ["tap","scores","start","crew","setup","overlay"].includes(h) ? h : "tap";
+};
+function teamById(id){ return id === OTHER ? { id:OTHER, name:"Other", color:"#9aa39e" } : (race?.teams || []).find(t => t.id === id) || { id, name:"?", color:"#888888" }; }
+function swatch(id){ const t = teamById(id); return `<span class="sw" style="background:${esc(t.color)}"></span>`; }
+
+function demoBanner(){
+  if (demo) return `<div class="banner"><span><b>Demo race.</b> Example teams and times. Nothing is saved or shared.</span><button id="exitDemo">Exit demo</button></div>`;
+  return "";
+}
+function renderHome(){
+  const last = ls.get("xc-lastmeet", "");
+  if (!configured) return `<div class="panel"><h2>Almost ready</h2>
+    <p>This copy of the race clock isn't connected to a database yet. Follow the steps in the README to add your Supabase project's URL and key to <code>config.js</code>.</p>
+    <div><button id="tryDemo">Try the demo</button></div></div>`;
+  return `<div class="panel"><h2>Join a meet</h2><p class="muted">Use the coach link or meet code from your head coach.</p>
+      <label>Meet code<input id="joinCode" type="text" autocapitalize="off" autocomplete="off" placeholder="xc-…"></label>
+      <div class="row"><button class="primary" id="join">Join meet</button>${last ? `<button id="rejoin" data-code="${esc(last)}">Rejoin ${esc(last)}</button>` : ""}</div></div>
+    <div class="panel"><h2>Head coach</h2><p class="muted">Creates a new private meet code. You'll set up teams and get links to send to your coaches.</p>
+      <div class="row"><button id="createMeet">Create a meet</button><button id="tryDemo">Try the demo</button></div></div>`;
+}
+function renderCrew(){
+  if (demo) return `<div class="panel"><h2>Coaches online</h2><p class="muted">In a real meet, every coach's phone shows up here with their spot and signal.</p></div>`;
+  const list = crewList();
+  const cps = race?.checkpoints || [];
+  const idx = s => { const i = cps.indexOf(s); return i < 0 ? 99 : i; };
+  const coaches = list.filter(p => p.role === "coach").sort((a,b) => idx(a.spot) - idx(b.spot) || (a.name || "").localeCompare(b.name || ""));
+  const viewers = list.filter(p => p.role !== "coach" && p.on).length;
+  const covered = new Set(coaches.filter(c => c.on && c.spot).map(c => c.spot));
+  const open = cps.filter(c => !covered.has(c));
+  const rows = coaches.map(c => {
+    const bits = [];
+    bits.push(c.on ? "Online" : "Not heard from " + ago(c.lastSeen) + " (no signal or screen locked)");
+    if (c.taps) bits.push(c.taps + " taps, last " + ago(c.lastTapAt));
+    const warn = c.pending ? `<div class="det warn">${c.pending} spot log${c.pending > 1 ? "s" : ""} waiting to send</div>` : "";
+    return `<div class="crewrow"><span class="dot ${c.on ? "on" : "away"}"></span>
+      <div><div class="who">${esc(c.name || "Unnamed coach")}${c.me ? " (you)" : ""}</div><div class="det">${esc(bits.join(" · "))}</div>${warn}</div>
+      <div class="spot">${c.spot ? esc(c.spot) : `<span class="det">No spot yet</span>`}</div></div>`;
+  }).join("");
+  return `<div class="panel"><h2>Coaches online</h2>
+      ${rows ? `<div class="crew">${rows}</div>` : `<p class="muted">No coaches have opened the meet yet.</p>`}
+      ${open.length && race ? `<p class="warn">No coach online at: ${open.map(esc).join(", ")}</p>` : ""}
+      <p class="muted">${viewers} ${viewers === 1 ? "person" : "people"} watching scores or the overlay.</p></div>
+    <div class="panel"><p class="muted">A phone shows as "not heard from" when it loses signal or its screen locks. It stays on this list for 30 minutes so you can see who dropped off. Taps made while a phone is offline are kept on that phone and sent when signal returns.</p></div>`;
+}
+function noRace(){
+  if (watch) return `<div class="panel empty"><h2>Waiting for the race</h2><p class="muted">The clock and team scores will appear here once the coaches set up the race.</p></div>`;
+  return `<div class="panel empty"><h2>No race yet</h2>
+    <p class="muted">Add your teams' jersey colors and the spots on the course where coaches will stand.</p>
+    <div class="row" style="justify-content:center"><a href="#setup"><button class="primary">Set up a race</button></a><button id="tryDemo2">Try the demo</button></div></div>`;
+}
+
+function renderTap(){
+  if (!race) return noRace();
+  const cps = race.checkpoints || [];
+  if (myCp == null || myCp >= cps.length){
+    return `<div class="panel"><h2>Where are you standing?</h2>
+      <label>Your name<input id="coachName" type="text" autocomplete="name" placeholder="Coach Smith" value="${esc(coachName)}"></label>
+      <div class="pads">${cps.map((c,i) => `<button class="pad other" data-cp="${i}"><span class="pn">${esc(c)}</span></button>`).join("")}</div></div>`;
+  }
+  const mine = local.logs[myCp] || [];
+  const counts = {}; for (const x of mine) counts[x.team] = (counts[x.team] || 0) + 1;
+  const pads = (race.teams || []).map(t => `<button class="pad" data-team="${esc(t.id)}" style="background:${esc(t.color)};color:${textOn(t.color)}">
+      <span class="pn">${esc(t.name)}</span><span class="pc">${counts[t.id] || 0} through</span></button>`).join("")
+    + `<button class="pad other" data-team="${OTHER}"><span class="pn">Other</span><span class="pc">${counts[OTHER] || 0} · not scored</span></button>`;
+  const recent = [...mine].sort((a,b) => b.at - a.at).slice(0, 8).map(x => {
+    const place = mine.filter(y => y.at <= x.at).length;
+    return `<div class="tap"><span class="muted">#${place}</span>${swatch(x.team)}<span>${esc(teamById(x.team).name)}</span>
+      <span class="tm">${race.startAt ? fmt(x.at - race.startAt) : "before start"}</span><button class="x" data-del="${esc(x.id)}" aria-label="Remove this tap">Remove</button></div>`;
+  }).join("");
+  return `${!race.startAt ? `<div class="banner"><span><b>Clock not started.</b> Tap anyway; times fill in once the starter presses Start.</span></div>` : ""}
+    <div class="cpbar"><span class="cpname">${esc(cps[myCp])}</span><button id="changeCp">Change spot</button></div>
+    <div class="pads">${pads}</div>
+    <div class="panel"><div class="row" style="justify-content:space-between"><h3>Last taps at ${esc(cps[myCp])} · ${mine.length} total</h3>${mine.length ? `<button id="undo">Undo last</button>` : ""}</div>
+      ${recent ? `<div class="recent">${recent}</div>` : `<p class="muted">Tap a jersey color each time a runner passes you. The time is taken at the moment you tap.</p>`}</div>`;
+}
+
+function logsForCp(cp){
+  const out = remoteLogs.filter(d => d.cp === cp && d.device !== deviceId).map(d => ({ id: d.id, coach: d.coach, taps: d.taps || [] }));
+  const mine = local.logs[cp];
+  if (mine?.length) out.unshift({ id: "mine", coach: (coachName || "You") + " (this phone)", taps: mine });
+  return out;
+}
+function renderScores(){
+  if (!race) return noRace();
+  const teams = race.teams || [];
+  const blocks = (race.checkpoints || []).map((name, cp) => {
+    const logs = logsForCp(cp);
+    if (!logs.length) return `<div class="panel"><h2>${esc(name)}</h2><p class="muted">No taps yet from this spot.</p></div>`;
+    let pick = logs.find(l => l.id === scorePick[cp]) || logs.reduce((a,b) => b.taps.length > a.taps.length ? b : a);
+    const r = score(pick.taps, teams);
+    const chips = logs.length > 1 ? `<div class="chips">${logs.map(l => `<button class="chip" data-pick="${cp}|${esc(l.id)}" aria-pressed="${l === pick}">${esc(l.coach)} · ${l.taps.length}</button>`).join("")}</div>` : `<p class="muted">From ${esc(pick.coach)} · ${r.total} runners through</p>`;
+    const rows = r.standings.map((s, i) => {
+      const t = teamById(s.id);
+      const places = s.places.map((p, k) => k < 5 ? p.place : `<s>${p.place}</s>`).join(" · ");
+      return `<tr><td class="big">${i+1}</td><td><span class="teamcell">${swatch(s.id)}${esc(t.name)}</span></td><td class="big">${s.score}</td>
+        <td class="pl"><span class="places">${places}</span></td><td>${fmt(s.spread, false)}</td></tr>`;
+    }).join("");
+    const waiting = r.waiting.length ? `<p class="muted">Not scored yet (fewer than 5 through): ${r.waiting.map(w => `${esc(teamById(w.id).name)} ${w.n}`).join(", ")}</p>` : "";
+    const order = race.startAt ? `<details><summary class="muted">Running order with times</summary><div class="order" style="margin-top:8px">${r.order.map(o =>
+      `<div class="${o.tp ? "" : "np"}"><span>${o.overall}.</span>${swatch(o.team)}<span>${fmt(o.at - race.startAt)}</span>${o.tp ? `<span class="muted">(${o.tp})</span>` : ""}</div>`).join("")}</div></details>` : "";
+    return `<div class="panel"><h2>${esc(name)}</h2>${chips}
+      ${rows ? `<div class="tablewrap"><table><thead><tr><th></th><th>Team</th><th>Score</th><th>Places (6th, 7th)</th><th>1–5 gap</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<p class="muted">No team has 5 runners through yet.</p>`}
+      ${waiting}${order}</div>`;
+  }).join("");
+  return blocks + `<div class="panel"><h3>Put the clock and scores on the livestream</h3>
+    <p class="muted">Opens a full-screen graphic with the race clock and the latest team scores. In OBS, capture that window and key out the green.</p>
+    <div><a href="#overlay"><button class="primary">Open stream overlay</button></a></div></div>
+  <div class="panel"><h3>How scores are counted</h3><ul class="rules">
+    <li>Only teams with at least 5 runners through are scored. Places skip runners from other teams and "Other".</li>
+    <li>A team's top 5 places add up to its score. Low score wins.</li>
+    <li>The 6th and 7th runners (shown in parentheses) push other teams' places back but don't add to the score. An 8th runner is skipped.</li>
+    <li>Ties go to the team whose 6th runner placed higher.</li></ul></div>`;
+}
+
+function renderStart(){
+  if (!race) return noRace();
+  if (!race.startAt){
+    return `<div class="panel"><h2>Start the clock</h2><p class="muted">Press at the gun. Every coach's phone starts counting from this moment.</p>
+      <button class="startbtn" id="go">START</button></div>`;
+  }
+  return `<div class="panel"><h2>Race is running</h2>
+      <p class="muted">Pressed Start late or early? Shift the start time. Every split already tapped moves with it.</p>
+      <div class="nudges"><button data-nudge="-5000">−5 s</button><button data-nudge="-1000">−1 s</button><button data-nudge="1000">+1 s</button><button data-nudge="5000">+5 s</button></div></div>
+    <div class="panel"><h3>False start or test run?</h3><p class="muted">Clears the clock. Taps stay but will have no time until Start is pressed again.</p>
+      <button class="danger ${armed === "reset" ? "armed" : ""}" id="resetClock">${armed === "reset" ? "Tap again to clear the clock" : "Clear the clock"}</button></div>`;
+}
+
+function renderSetup(){
+  const r = race || { name:"", teams:[], checkpoints:["1 Mile","2 Mile","Finish"] };
+  const teams = r.teams?.length ? r.teams : [{ id:"t"+rid(), name:"", color:"#1b4fa0" }, { id:"t"+rid(), name:"", color:"#c8102e" }];
+  return `<div class="panel"><h2>${race ? "Race setup" : "New race"}</h2>
+    <label>Race name<input id="fName" type="text" placeholder="Saturday Invitational – Varsity Girls" value="${esc(r.name)}"></label></div>
+  <div class="panel"><h2>Teams</h2><p class="muted">Pick each team's main jersey color. It becomes that team's tap button.</p>
+    <div id="teamList" style="display:grid;gap:8px">${teams.map(t => `<div class="teamrow" data-id="${esc(t.id)}">
+      <input type="color" value="${esc(t.color)}" aria-label="Jersey color"><input type="text" placeholder="School name" value="${esc(t.name)}" aria-label="School name">
+      <button class="x danger" data-rmteam aria-label="Remove team">✕</button></div>`).join("")}</div>
+    <div><button id="addTeam">Add a team</button></div></div>
+  <div class="panel"><h2>Coach spots</h2><p class="muted">One per line, in course order. Put the finish last.</p>
+    <textarea id="fCps" rows="4" style="font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;width:100%">${esc((r.checkpoints || []).join("\n"))}</textarea></div>
+  <div class="row"><button class="primary" id="saveSetup">${race ? "Save changes" : "Create race"}</button>
+    ${race && !demo ? `<button class="danger ${armed === "newrace" ? "armed" : ""}" id="newRace">${armed === "newrace" ? "Tap again: start fresh" : "New race, same teams"}</button>` : ""}</div>
+  ${race && !demo ? `<p class="muted">"New race, same teams" clears the clock and every coach's taps, for the next race of the day.</p>` : ""}
+  ${meet && !demo ? sharePanel() : ""}`;
+}
+
+function links(){
+  const base = location.origin + location.pathname + "?meet=" + encodeURIComponent(meet);
+  return { coach: base, watch: base + "&watch", overlay: base + "&bg=clear#overlay" };
+}
+function sharePanel(){
+  const L = links();
+  return `<div class="panel"><h2>Share this meet</h2>
+    <p class="muted">Meet code <b>${esc(meet)}</b>. Anyone with the coach link can tap times and change the race, so send it only to your coaches.</p>
+    <div class="share">
+      <div><h3>Coaches</h3><div class="qr" data-qr="${esc(L.coach)}"></div><code>${esc(L.coach)}</code><button data-copy="${esc(L.coach)}">Copy coach link</button></div>
+      <div><h3>Families (clock and scores only)</h3><div class="qr" data-qr="${esc(L.watch)}"></div><code>${esc(L.watch)}</code><button data-copy="${esc(L.watch)}">Copy family link</button></div>
+      <div><h3>OBS overlay</h3><p class="muted">In OBS add a Browser Source with this address, size 1920 × 1080. The background is already see-through.</p><code>${esc(L.overlay)}</code><button data-copy="${esc(L.overlay)}">Copy overlay link</button></div>
+    </div></div>`;
+}
+
+// ---------- stream overlay ----------
+let ovCp = ls.get("xc-ovcp", "auto");      // "auto" or a checkpoint index
+let ovBg = ls.get("xc-ovbg", "green");     // green screen for chroma key, or black
+let ovHidden = false, ovTimer = null;
+function ovPoke(){
+  if (view() !== "overlay") return;
+  if (ovHidden){ ovHidden = false; $("#ovCtl")?.classList.remove("hide"); }
+  clearTimeout(ovTimer);
+  ovTimer = setTimeout(() => { ovHidden = true; $("#ovCtl")?.classList.add("hide"); }, 3000);
+}
+function renderOverlay(){
+  const cps = race?.checkpoints || [];
+  const teams = race?.teams || [];
+  const results = cps.map((name, cp) => {
+    const logs = logsForCp(cp);
+    if (!logs.length) return null;
+    const pick = logs.find(l => l.id === scorePick[cp]) || logs.reduce((a,b) => b.taps.length > a.taps.length ? b : a);
+    return { name, cp, r: score(pick.taps, teams) };
+  });
+  let shown = null;
+  if (ovCp === "auto"){ for (let i = results.length - 1; i >= 0; i--) if (results[i]?.r.standings.length){ shown = results[i]; break; } }
+  else shown = results[Number(ovCp)] || { name: cps[Number(ovCp)] || "", r: { standings: [] } };
+  const pills = shown?.r.standings.map((s, i) => { const t = teamById(s.id);
+    return `<span class="ov-pill"><span class="pl">${i+1}</span><span class="sq" style="background:${esc(t.color)}"></span>${esc(t.name)} <b>${s.score}</b></span>`; }).join("") || "";
+  const bg = obsClear || ovBg === "clear" ? "transparent" : ovBg === "black" ? "#000000" : "#00b140";
+  document.body.style.background = bg;
+  return `<div class="ov-stage" style="background:${bg}">
+    <div class="ov-ctl ${ovHidden ? "hide" : ""}" id="ovCtl">
+      <button data-ovcp="auto" aria-pressed="${ovCp === "auto"}">Latest spot</button>
+      ${cps.map((c, i) => `<button data-ovcp="${i}" aria-pressed="${String(ovCp) === String(i)}">${esc(c)}</button>`).join("")}
+      ${obsClear ? "" : `<button id="ovBg">${ovBg === "black" ? "Black background" : ovBg === "clear" ? "See-through background" : "Green background"}</button>`}
+      ${obsClear ? "" : `<a href="#scores"><button>Close</button></a>`}
+      <span class="tip">These buttons hide after 3 seconds and come back when you move the mouse.</span>
+    </div>
+    <div class="ov-third">
+      <div class="ov-clockbox"><div class="ov-race">${esc(race?.name || "Race clock")}</div><div class="ov-clock" id="ovClock">0:00</div></div>
+      <div class="ov-scores">${shown ? `<div class="ov-cp">${esc(shown.name)} · Team scores</div>` : `<div class="ov-cp">Team scores</div>`}
+        ${pills ? `<div class="ov-pills">${pills}</div>` : `<div class="ov-wait">Scores appear once a team has 5 runners through</div>`}</div>
+    </div></div>`;
+}
+
+function render(){
+  const v = view();
+  document.body.classList.toggle("ov", v === "overlay");
+  if (v === "overlay"){ $("#main").innerHTML = renderOverlay(); return; }
+  document.body.style.background = "";
+  $("#nav").hidden = watch || (!meet && !demo);
+  renderCrewChip();
+  if (!meet && !demo){ $("#main").innerHTML = renderHome(); return; }
+  document.querySelectorAll("nav a").forEach(a => a.dataset.v === v ? a.setAttribute("aria-current","page") : a.removeAttribute("aria-current"));
+  $("#raceName").textContent = race?.name || "XC Race Clock";
+  if (document.activeElement && $("#main").contains(document.activeElement) && v === "setup" && document.activeElement.tagName !== "BUTTON") return; // don't wipe typing
+  const body = { tap: renderTap, scores: renderScores, start: renderStart, crew: renderCrew, setup: renderSetup }[v]();
+  $("#main").innerHTML = demoBanner() + body;
+  if (typeof QRCode !== "undefined") document.querySelectorAll("[data-qr]").forEach(el => { try { new QRCode(el, { text: el.dataset.qr, width: 132, height: 132, correctLevel: QRCode.CorrectLevel.M }); } catch(e){} });
+}
+
+// ---------- actions ----------
+let toastTimer;
+function toast(msg){ setSync(msg, true); clearTimeout(toastTimer); toastTimer = setTimeout(updateSyncUi, 5000); }
+function addTap(team){
+  const at = now();
+  (local.logs[myCp] ||= []).push({ id: rid(), at, team });
+  saveLocal(); dirty.add(myCp); flush(); updatePresence(); render();
+  const el = document.querySelector(`.pad[data-team="${CSS.escape(team)}"]`);
+  if (el){ el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 180); }
+  try { navigator.vibrate?.(30); } catch(e){}
+}
+function delTap(id){
+  const arr = local.logs[myCp] || []; const i = arr.findIndex(x => x.id === id);
+  if (i >= 0){ arr.splice(i, 1); saveLocal(); dirty.add(myCp); flush(); updatePresence(); render(); }
+}
+function arm(name){ armed = name; render(); setTimeout(() => { if (armed === name){ armed = null; render(); } }, 4000); }
+
+document.addEventListener("pointerdown", e => {
+  const pad = e.target.closest(".pad[data-team]");
+  if (pad){ e.preventDefault(); addTap(pad.dataset.team); }
+});
+document.addEventListener("click", async e => {
+  const t = e.target.closest("button"); if (!t) return;
+  if (t.id === "tryDemo" || t.id === "tryDemo2"){ startDemo(); return; }
+  if (t.dataset.ovcp != null){ ovCp = t.dataset.ovcp; ls.set("xc-ovcp", ovCp); render(); ovPoke(); return; }
+  if (t.id === "ovBg"){ ovBg = ovBg === "green" ? "black" : ovBg === "black" ? "clear" : "green"; ls.set("xc-ovbg", ovBg); render(); ovPoke(); return; }
+  if (t.id === "exitDemo"){ exitDemo(); return; }
+  if (t.id === "join"){ const c = ($("#joinCode").value || "").trim().toLowerCase().replace(/[^a-z0-9-]/g, ""); if (c.length < 8){ toast("Meet codes look like xc-ab12cd34."); return; } location.href = "?meet=" + c + "#tap"; return; }
+  if (t.id === "rejoin"){ location.href = "?meet=" + t.dataset.code + "#tap"; return; }
+  if (t.id === "createMeet"){ const c = "xc-" + Math.random().toString(36).slice(2, 6) + Date.now().toString(36).slice(-4); location.href = "?meet=" + c + "#setup"; return; }
+  if (t.dataset.copy){ const txt = t.dataset.copy; try { await navigator.clipboard.writeText(txt); const o = t.textContent; t.textContent = "Copied"; setTimeout(() => t.textContent = o, 1500); } catch(err){ toast("Couldn't copy. Press and hold the link to copy it."); } return; }
+  if (t.dataset.cp != null){
+    const n = $("#coachName"); if (n){ coachName = n.value.trim(); ls.set("xc-coach", coachName); }
+    myCp = Number(t.dataset.cp); if (!demo) ls.set("xc-cp", myCp);
+    try { await navigator.wakeLock?.request("screen"); } catch(err){}
+    updatePresence(); render(); return;
+  }
+  if (t.id === "changeCp"){ myCp = null; updatePresence(); render(); return; }
+  if (t.id === "undo"){ const arr = [...(local.logs[myCp] || [])].sort((a,b) => a.at - b.at); if (arr.length) delTap(arr[arr.length-1].id); return; }
+  if (t.dataset.del){ delTap(t.dataset.del); return; }
+  if (t.dataset.pick){ const [cp, id] = t.dataset.pick.split("|"); scorePick[cp] = id; render(); return; }
+  if (t.id === "go"){ const at = now(); race = { ...race, startAt: at }; render(); await saveRace({ startAt: at }); return; }
+  if (t.dataset.nudge){ await saveRace({ startAt: race.startAt + Number(t.dataset.nudge) }); return; }
+  if (t.id === "resetClock"){ if (armed !== "reset") return arm("reset"); armed = null; await saveRace({ startAt: null }); return; }
+  if (t.id === "addTeam"){
+    const row = document.createElement("div"); row.className = "teamrow"; row.dataset.id = "t" + rid();
+    row.innerHTML = `<input type="color" value="#555555" aria-label="Jersey color"><input type="text" placeholder="School name" aria-label="School name"><button class="x danger" data-rmteam aria-label="Remove team">✕</button>`;
+    $("#teamList").appendChild(row); row.querySelector("input[type=text]").focus(); return;
+  }
+  if (t.hasAttribute("data-rmteam")){ t.closest(".teamrow").remove(); return; }
+  if (t.id === "saveSetup" || t.id === "newRace"){
+    if (t.id === "newRace" && armed !== "newrace") return arm("newrace");
+    armed = null;
+    const teams = [...document.querySelectorAll(".teamrow")].map(r => ({ id: r.dataset.id, color: r.querySelector("input[type=color]").value, name: r.querySelector("input[type=text]").value.trim() })).filter(x => x.name);
+    const checkpoints = $("#fCps").value.split("\n").map(s => s.trim()).filter(Boolean);
+    if (!teams.length || !checkpoints.length){ toast("Add at least one team and one coach spot."); return; }
+    const fresh = !race || t.id === "newRace";
+    const patch = { name: $("#fName").value.trim() || "Cross Country Race", teams, checkpoints };
+    if (fresh){ patch.raceId = rid(); patch.startAt = null; }
+    document.activeElement?.blur();
+    if (!db && !demo){ toast("Not connected to the race database."); return; }
+    if (await saveRace(patch, fresh)){ location.hash = fresh ? "#start" : "#tap"; render(); }
+  }
+});
+window.addEventListener("hashchange", () => { armed = null; ovHidden = false; render(); ovPoke(); updatePresence(); });
+setInterval(() => { renderCrewChip(); if (view() === "crew") render(); }, 5000);
+["mousemove","pointerdown","keydown"].forEach(ev => document.addEventListener(ev, ovPoke, { passive: true }));
+window.addEventListener("online", flush);
+
+render(); updateSyncUi(); requestAnimationFrame(tick); connect(); ovPoke();
+})();
+</script>
+</body>
+</html>
