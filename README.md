@@ -16,19 +16,19 @@ It's free to run. The page is hosted on GitHub Pages and the data is stored in S
 ### 1. Supabase (stores the race data)
 1. Go to supabase.com → **New project**. Name it `xc-race-clock`, pick a region near you, and save the database password somewhere.
 2. When it's ready, open **SQL Editor → New query**. Paste in everything from `setup.sql` and click **Run**. You should see "Success".
-3. Open **Project Settings → API** and copy two values:
-   - the **Project URL**
-   - the **anon public** key (not the `service_role` key)
+3. In **Project Settings**, copy two values:
+   - **Data API** page: the **Project URL**
+   - **API Keys** page: the **Publishable key**, which starts with `sb_publishable_`. Don't use a secret key.
 
 ### 2. Add your keys
 Open `config.js` and paste the two values between the quotes:
 ```js
 window.XC_SUPABASE = {
   url: "https://YOURPROJECT.supabase.co",
-  anonKey: "eyJhbGciOi..."
+  anonKey: "sb_publishable_..."
 };
 ```
-The anon key is designed to be public, so it's fine for it to sit in a public page.
+The publishable key is designed to be public, so it's fine for it to sit in a public page.
 
 ### 3. Turn on GitHub Pages
 In this repository on GitHub, open **Settings → Pages**. Under "Build and deployment", choose **Deploy from a branch**, then select **main** and **/ (root)**, and click **Save**.
